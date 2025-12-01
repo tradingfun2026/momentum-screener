@@ -205,7 +205,7 @@ if not df.empty:
     if not watchlist_text.strip():
 
         if "Score" in df: df=df[df["Score"].fillna(-999)>=min_breakout]
-        if "PM%"] in df: df=df[df["PM%"].fillna(-999)>=min_pm_move]     # ✔ FIXED
+        if "PM%" in df: df=df[df["PM%"].fillna(-999)>=min_pm_move]     # ✔ FIXED
         if "YDay%" in df: df=df[df["YDay%"].fillna(-999)>=min_yday_gain]
         if squeeze_only and "Squeeze?" in df: df=df[df["Squeeze?"]==True]
         if catalyst_only and "Catalyst" in df: df=df[df["Catalyst"]==True]
