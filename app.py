@@ -51,7 +51,7 @@ with st.sidebar:
         min_value=50,
         max_value=600,
         value=2000,
-        step=50,
+        step=200,
         help="Keeps scans fast when you don't use a custom watchlist.",
     )
 
