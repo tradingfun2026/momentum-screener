@@ -87,7 +87,7 @@ with st.sidebar:
         "Max symbols to consider when volume-ranking (V9)",
         min_value=100,
         max_value=2000,
-        value=600,
+        value=2000,
         step=100,
         help="Used only when 'Live Volume Ranked (slower)' is selected.",
     )
