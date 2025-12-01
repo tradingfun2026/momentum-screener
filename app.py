@@ -279,10 +279,11 @@ else:
         c1,c2,c3,c4 = st.columns([2,3,3,3])
         c1.markdown(f"### **{row['Symbol']}**")
         c1.write(f"Price **{row['Price']}** | Vol **{row['Volume']:,}**")
-        c1.write(f"Score **{row['Score']}** | RiseProb {row['Prob_Rise%']}%")
+        c1.write(f"Score **{row['Score']:.2f}** | RiseProb {row['Prob_Rise%']:.2f}%")
 
-        c2.write(f"PM {row['PM%']}%  |  YDay {row['YDay%']}%")
-        c2.write(f"3D {row['3D%']}% | 10D {row['10D%']}%")
+
+        c2.write(f"PM {row['PM%']:.2f}%  |  YDay {row['YDay%']:.2f}%")
+        c2.write(f"3D {row['3D%']:.2f}% | 10D {row['10D%']:.2f}%")
         c2.write(f"RSI7 {row['RSI7']} | RVOL {row['RVOL_10D']}x")
 
         c3.markdown("### 🧠 AI Commentary")
