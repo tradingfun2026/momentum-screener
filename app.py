@@ -67,13 +67,31 @@ with st.sidebar:
 # ========================= LOAD SYMBOLS =========================
 @st.cache_data(ttl=900)
 def load_symbols():
-    nasdaq=pd.read_csv("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",sep="|",skipfooter=1,engine="python")
-    other=pd.read_csv("https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",sep="|",skipfooter=1,engine="python")
-    nasdaq["Exchange"]="NASDAQ"
-    other=other.rename(columns={"ACT Symbol":"Symbol"})
-    df=pd.concat([nasdaq[["Symbol","ETF","Exchange"]],other[["Symbol","ETF","Exchange"]]])
-    df=df[df["Symbol"].str.match(r"^[A-Z]{1,5}$")]
+    nasdaq = pd.read_csv(
+        "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
+        sep="|", skipfooter=1, engine="python"
+    )
+    other = pd.read_csv(
+        "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
+        sep="|", skipfooter=1, engine="python"
+    )
+
+    nasdaq["Exchange"] = "NASDAQ"
+    other = other.rename(columns={"ACT Symbol": "Symbol"})
+
+    df = pd.concat([
+        nasdaq[["Symbol", "ETF", "Exchange"]],
+        other[["Symbol", "ETF", "Exchange"]]
+    ])
+
+    # FIX: ensure symbols are clean before filtering
+    df["Symbol"] = df["Symbol"].astype(str).fillna("")
+
+    # Only keep valid ticker formats A–Z length 1–5
+    df = df[df["Symbol"].str.match(r"^[A-Z]{1,5}$", na=False)]
+
     return df.to_dict("records")
+
 
 # ========================= UNIVERSE =========================
 def build_universe(watch,limit,mode,pool):
