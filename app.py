@@ -275,14 +275,15 @@ else:
 
     st.subheader(f"🔥 Returned: {len(df)} symbols")
 
-    def fmt2(x):
+  def fmt2(x):
     """Format numbers to 2 decimals; show '—' if missing."""
     try:
         if x is None:
             return "—"
         return f"{float(x):.2f}"
-    except Exception:
+    except:
         return "—"
+
 
 
     for _,row in df.iterrows():
