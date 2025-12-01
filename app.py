@@ -275,40 +275,29 @@ else:
 
     st.subheader(f"🔥 Returned: {len(df)} symbols")
 
-  def fmt2(x):
-    """Format numbers to 2 decimals; show '—' if missing."""
-    try:
-        if x is None:
-            return "—"
-        return f"{float(x):.2f}"
-    except:
-        return "—"
-
-
-
     for _,row in df.iterrows():
         c1,c2,c3,c4 = st.columns([2,3,3,3])
+
+        # ---- LEFT BLOCK ----
         c1.markdown(f"### **{row['Symbol']}**")
-        c1.write(f"Price **{row['Price']}** | Vol **{row['Volume']:,}**")
+        c1.write(f"Price **{fmt2(row['Price'])}** | Vol **{int(row['Volume']):,}**")
         c1.write(f"Score **{fmt2(row['Score'])}** | RiseProb {fmt2(row['Prob_Rise%'])}%")
 
-
+        # ---- MOMENTUM + RETURNS (2-decimal format everywhere) ----
         c2.write(f"PM {fmt2(row['PM%'])}%  |  YDay {fmt2(row['YDay%'])}%")
         c2.write(f"3D {fmt2(row['3D%'])}% | 10D {fmt2(row['10D%'])}%")
         c2.write(f"RSI7 {fmt2(row['RSI7'])} | RVOL {fmt2(row['RVOL_10D'])}x")
 
+        # ---- COMMENTARY ----
         c3.markdown("### 🧠 AI Commentary")
         c3.write(row["AI_Commentary"])
 
+        # ---- SPARKLINE ----
         fig=go.Figure(go.Scatter(y=row["Spark"].values,mode="lines"))
         fig.update_layout(height=180,margin=dict(l=5,r=5,t=10,b=10))
         c4.plotly_chart(fig,use_container_width=True)
 
-    st.download_button(
-        "📥 Export CSV",
-        df.to_csv(index=False),
-        "momentum_screener.csv"
-    )
+    st.download_button("📥 Export CSV",df.to_csv(index=False),"momentum_screener.csv")
 
 
 
