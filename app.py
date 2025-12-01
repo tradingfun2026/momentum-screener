@@ -16,7 +16,7 @@ INTRADAY_INTERVAL     = "2m"         # 2-minute candles
 INTRADAY_RANGE        = "1d"
 
 DEFAULT_MAX_PRICE     = 5.0
-DEFAULT_MIN_VOLUME    = 0.0
+DEFAULT_MIN_VOLUME    = 0.0          # float now
 DEFAULT_MIN_BREAKOUT  = 0.0
 
 # ========================= AUTO REFRESH =========================
@@ -37,9 +37,9 @@ st.caption(
 
 # ========================= FORMATTER =========================
 def fmt2(x):
-    """Format numbers to 2 decimals; show '—' if missing."""
+    """Format numbers to 2 decimals; show '—' if missing or invalid."""
     try:
-        if x is None:
+        if x is None or (isinstance(x, float) and (math.isnan(x))):
             return "—"
         return f"{float(x):.2f}"
     except Exception:
@@ -59,8 +59,8 @@ with st.sidebar:
     max_universe = st.slider(
         "Max symbols to scan when no watchlist",
         min_value=50,
-        max_value=2000,
-        value=2000,
+        max_value=600,
+        value=200,
         step=50,
         help="Keeps scans fast when you don't use a custom watchlist.",
     )
@@ -87,7 +87,7 @@ with st.sidebar:
         "Max symbols to consider when volume-ranking (V9)",
         min_value=100,
         max_value=2000,
-        value=2000,
+        value=600,
         step=100,
         help="Used only when 'Live Volume Ranked (slower)' is selected.",
     )
@@ -102,6 +102,7 @@ with st.sidebar:
 
     max_price = st.number_input("Max Price ($)", 1.0, 1000.0, DEFAULT_MAX_PRICE, 0.5)
 
+    # float-based to avoid StreamlitMixedNumericTypesError
     min_volume = st.number_input(
         "Min Daily Volume",
         0.0,
@@ -136,6 +137,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("🔊 Audio Alert Thresholds")
+
     enable_alerts = st.checkbox(
         "Enable Audio + Alert Banner",
         value=False,
@@ -173,7 +175,7 @@ def load_symbols():
          other[["Symbol", "ETF", "Exchange"]]]
     )
 
-    # 🔧 Fix: ensure Symbol is string and non-null to avoid ValueError
+    # Fix: ensure Symbol is string, non-null before regex filtering
     df["Symbol"] = df["Symbol"].astype(str).fillna("")
     df = df[df["Symbol"].str.contains(r"^[A-Z]{1,5}$", na=False, regex=True)]
     return df.to_dict("records")
@@ -362,36 +364,7 @@ def scan_one(sym, enable_enrichment: bool, enable_ofb_filter: bool, min_ofb: flo
         # Daily 10d history
         hist = stock.history(period=f"{HISTORY_LOOKBACK_DAYS}d", interval="1d")
         if hist is None or hist.empty or len(hist) < 5:
-            # Watchlist symbols still return a row, even if data is thin
-            if exchange == "WATCH":
-                return {
-                    "Symbol": ticker,
-                    "Exchange": exchange,
-                    "Price": None,
-                    "Volume": None,
-                    "Score": None,
-                    "Prob_Rise%": None,
-                    "PM%": None,
-                    "YDay%": None,
-                    "3D%": None,
-                    "10D%": None,
-                    "RSI7": None,
-                    "EMA10 Trend": "No Data",
-                    "RVOL_10D": None,
-                    "VWAP%": None,
-                    "FlowBias": None,
-                    "Squeeze?": None,
-                    "LowFloat?": None,
-                    "Short % Float": None,
-                    "Sector": None,
-                    "Industry": None,
-                    "Catalyst": None,
-                    "MTF_Trend": "No Data",
-                    "Spark": pd.Series([], dtype=float),
-                    "AI_Commentary": "⚠ No historical data available (watchlist override).",
-                }
-            else:
-                return None
+            return None
 
         close = hist["Close"]
         volume = hist["Volume"]
@@ -476,8 +449,9 @@ def scan_one(sym, enable_enrichment: bool, enable_ofb_filter: bool, min_ofb: flo
                 if total > 0:
                     order_flow_bias = buy_vol / total  # 0..1
 
-        # Optional order-flow bias filter (watchlist bypass)
-        if enable_ofb_filter and exchange != "WATCH":
+        # Optional order-flow bias filter
+        if enable_ofb_filter:
+            # still applies to watchlist unless you want to bypass here too:
             if order_flow_bias is None or order_flow_bias < min_ofb:
                 return None
 
@@ -570,34 +544,8 @@ def scan_one(sym, enable_enrichment: bool, enable_ofb_filter: bool, min_ofb: flo
         }
 
     except Exception:
-        # For watchlist, prefer returning a stub row over dropping entirely
-        if sym.get("Exchange") == "WATCH":
-            return {
-                "Symbol": sym["Symbol"],
-                "Exchange": "WATCH",
-                "Price": None,
-                "Volume": None,
-                "Score": None,
-                "Prob_Rise%": None,
-                "PM%": None,
-                "YDay%": None,
-                "3D%": None,
-                "10D%": None,
-                "RSI7": None,
-                "EMA10 Trend": "Error",
-                "RVOL_10D": None,
-                "VWAP%": None,
-                "FlowBias": None,
-                "Squeeze?": None,
-                "LowFloat?": None,
-                "Short % Float": None,
-                "Sector": None,
-                "Industry": None,
-                "Catalyst": None,
-                "MTF_Trend": "Error",
-                "Spark": pd.Series([], dtype=float),
-                "AI_Commentary": "⚠ Error during scan (watchlist override).",
-            }
+        # any hard failure -> drop this symbol entirely (even if watchlist),
+        # instead of showing 'Error' rows
         return None
 
 @st.cache_data(ttl=6)
@@ -688,7 +636,6 @@ def trigger_audio_alert(symbol: str, reason: str):
     st.markdown(audio_html, unsafe_allow_html=True)
     st.warning(f"🔔 {symbol}: {reason}")
 
-
 # ========================= MAIN DISPLAY =========================
 with st.spinner("Scanning (10-day momentum, V9 hybrid universe)…"):
     df = run_scan(
@@ -704,7 +651,7 @@ with st.spinner("Scanning (10-day momentum, V9 hybrid universe)…"):
 if df.empty:
     st.error("No results found. Try adding a watchlist or relaxing filters.")
 else:
-    # 🔥 Watchlist precedence over filters:
+    # Watchlist precedence over filters:
     # If a watchlist is populated, show all scanned watchlist symbols
     # (don't drop them via post-scan filters).
     if not watchlist_text.strip():
@@ -715,94 +662,98 @@ else:
             df = df[df["PM%"].fillna(-999) >= min_pm_move]
         if min_yday_gain != 0.0:
             df = df[df["YDay%"].fillna(-999) >= min_yday_gain]
-        if squeeze_only:
+        if squeeze_only and "Squeeze?" in df:
             df = df[df["Squeeze?"]]
-        if catalyst_only:
+        if catalyst_only and "Catalyst" in df:
             df = df[df["Catalyst"]]
-        if vwap_only:
+        if vwap_only and "VWAP%" in df:
             df = df[df["VWAP%"].fillna(-999) > 0]
 
-    df = df.sort_values(by=["Score", "PM%", "RSI7"], ascending=[False, False, False])
+    if df.empty:
+        st.error("No results after filters.")
+    else:
+        df = df.sort_values(by=["Score", "PM%", "RSI7"], ascending=[False, False, False])
 
-    st.subheader(f"🔥 10-Day Momentum Board — {len(df)} symbols")
+        st.subheader(f"🔥 10-Day Momentum Board — {len(df)} symbols")
 
-    # 🔔 Alert banner (V9)
-    if enable_alerts and st.session_state.alerted:
-        alerted_list = ", ".join(sorted(st.session_state.alerted))
-        st.info(f"🔔 Active alert symbols: {alerted_list}")
+        # Alert banner (V9)
+        if enable_alerts and st.session_state.alerted:
+            alerted_list = ", ".join(sorted(st.session_state.alerted))
+            st.info(f"🔔 Active alert symbols: {alerted_list}")
 
-    # Iterate + audio alerts + inline charts
-    for _, row in df.iterrows():
-        sym = row["Symbol"]
+        # Iterate + audio alerts + inline charts
+        for _, row in df.iterrows():
+            sym = row["Symbol"]
 
-        # Audio alerts (once per symbol, if enabled)
-        if enable_alerts and sym not in st.session_state.alerted:
-            if row["Score"] is not None and row["Score"] >= ALERT_SCORE_THRESHOLD:
-                trigger_audio_alert(sym, f"Score {row['Score']}")
-            elif row["PM%"] is not None and row["PM%"] >= ALERT_PM_THRESHOLD:
-                trigger_audio_alert(sym, f"Premarket {row['PM%']}%")
-            elif row["VWAP%"] is not None and row["VWAP%"] >= ALERT_VWAP_THRESHOLD:
-                trigger_audio_alert(sym, f"VWAP Dist {row['VWAP%']}%")
+            # Audio alerts (once per symbol, if enabled)
+            if enable_alerts and sym not in st.session_state.alerted:
+                if row["Score"] is not None and row["Score"] >= ALERT_SCORE_THRESHOLD:
+                    trigger_audio_alert(sym, f"Score {row['Score']}")
+                elif row["PM%"] is not None and row["PM%"] >= ALERT_PM_THRESHOLD:
+                    trigger_audio_alert(sym, f"Premarket {row['PM%']}%")
+                elif row["VWAP%"] is not None and row["VWAP%"] >= ALERT_VWAP_THRESHOLD:
+                    trigger_audio_alert(sym, f"VWAP Dist {row['VWAP%']}%")
 
-        c1, c2, c3, c4 = st.columns([2, 3, 3, 3])
+            c1, c2, c3, c4 = st.columns([2, 3, 3, 3])
 
-        # Column 1: Basic info + score + volume
-        c1.markdown(f"**{sym}** ({row['Exchange']})")
-        c1.write(f"💲 Price: {fmt2(row['Price'])}")
-        c1.write(f"📊 Volume: {int(row['Volume']) if row['Volume'] is not None else '—'}")
-        c1.write(f"🔥 Score: **{fmt2(row['Score'])}**")
-        c1.write(f"📈 Prob_Rise: {fmt2(row['Prob_Rise%'])}%")
-        c1.write(f"{row['MTF_Trend']}")
-        c1.write(f"Trend: {row['EMA10 Trend']}")
+            # Column 1: Basic info + score + volume
+            c1.markdown(f"**{sym}** ({row['Exchange']})")
+            c1.write(f"💲 Price: {fmt2(row['Price'])}")
+            c1.write(f"📊 Volume: {int(row['Volume']):,}" if row["Volume"] is not None else "📊 Volume: —")
+            c1.write(f"🔥 Score: **{fmt2(row['Score'])}**")
+            c1.write(f"📈 Prob_Rise: {fmt2(row['Prob_Rise%'])}%")
+            c1.write(f"{row['MTF_Trend']}")
+            c1.write(f"Trend: {row['EMA10 Trend']}")
 
-        # Column 2: Momentum snapshot
-        c2.write(f"PM%: {fmt2(row['PM%'])}")
-        c2.write(f"YDay%: {fmt2(row['YDay%'])}")
-        c2.write(f"3D%: {fmt2(row['3D%'])}  |  10D%: {fmt2(row['10D%'])}")
-        c2.write(f"RSI7: {fmt2(row['RSI7'])}  |  RVOL_10D: {fmt2(row['RVOL_10D'])}x")
+            # Column 2: Momentum snapshot (2-decimal formatting)
+            c2.write(f"PM%: {fmt2(row['PM%'])}")
+            c2.write(f"YDay%: {fmt2(row['YDay%'])}")
+            c2.write(f"3D%: {fmt2(row['3D%'])}  |  10D%: {fmt2(row['10D%'])}")
+            c2.write(f"RSI7: {fmt2(row['RSI7'])}  |  RVOL_10D: {fmt2(row['RVOL_10D'])}x")
 
-        # Column 3: Microstructure + AI commentary
-        c3.write(f"VWAP Dist %: {fmt2(row['VWAP%'])}")
-        c3.write(f"Order Flow Bias: {fmt2(row['FlowBias'])}")
-        if enable_enrichment:
-            c3.write(
-                f"Squeeze: {row['Squeeze?']} | LowFloat: {row['LowFloat?']}"
-            )
-            c3.write(f"Sec/Ind: {row['Sector']} / {row['Industry']}")
-        else:
-            c3.write("Enrichment: OFF (float/short/news skipped for speed)")
+            # Column 3: Microstructure + AI commentary
+            c3.write(f"VWAP Dist %: {fmt2(row['VWAP%'])}")
+            c3.write(f"Order Flow Bias: {fmt2(row['FlowBias'])}")
+            if enable_enrichment:
+                c3.write(
+                    f"Squeeze: {row['Squeeze?']} | LowFloat: {row['LowFloat?']}"
+                )
+                c3.write(f"Sec/Ind: {row['Sector']} / {row['Industry']}")
+            else:
+                c3.write("Enrichment: OFF (float/short/news skipped for speed)")
 
-        # AI commentary line
-        c3.markdown(f"🧠 **AI View:** {row.get('AI_Commentary', '—')}")
+            # AI commentary line
+            c3.markdown(f"🧠 **AI View:** {row.get('AI_Commentary', '—')}")
 
-        # Column 4: Sparkline + full chart
-        if isinstance(row["Spark"], pd.Series) and not row["Spark"].empty:
-            c4.plotly_chart(sparkline(row["Spark"]), use_container_width=False)
-            with c4.expander("📊 View 10-day chart"):
-                c4.plotly_chart(bigline(row["Spark"], f"{sym} - Last 10 Days"), use_container_width=True)
-        else:
-            c4.write("No sparkline data.")
+            # Column 4: Sparkline + full chart
+            if isinstance(row["Spark"], pd.Series) and not row["Spark"].empty:
+                c4.plotly_chart(sparkline(row["Spark"]), use_container_width=False)
+                with c4.expander("📊 View 10-day chart"):
+                    c4.plotly_chart(bigline(row["Spark"], f"{sym} - Last 10 Days"), use_container_width=True)
+            else:
+                c4.write("No sparkline data.")
 
-        st.divider()
+            st.divider()
 
-    # Download current table
-    csv_cols = [
-        "Symbol", "Exchange", "Price", "Volume", "Score", "Prob_Rise%",
-        "PM%", "YDay%", "3D%", "10D%", "RSI7", "EMA10 Trend",
-        "RVOL_10D", "VWAP%", "FlowBias", "Squeeze?", "LowFloat?",
-        "Short % Float", "Sector", "Industry", "Catalyst", "MTF_Trend",
-        "AI_Commentary",
-    ]
-    csv_cols = [c for c in csv_cols if c in df.columns]
+        # Download current table
+        csv_cols = [
+            "Symbol", "Exchange", "Price", "Volume", "Score", "Prob_Rise%",
+            "PM%", "YDay%", "3D%", "10D%", "RSI7", "EMA10 Trend",
+            "RVOL_10D", "VWAP%", "FlowBias", "Squeeze?", "LowFloat?",
+            "Short % Float", "Sector", "Industry", "Catalyst", "MTF_Trend",
+            "AI_Commentary",
+        ]
+        csv_cols = [c for c in csv_cols if c in df.columns]
 
-    st.download_button(
-        "📥 Download Screener CSV",
-        data=df[csv_cols].to_csv(index=False),
-        file_name="v9_10day_momentum_screener_hybrid.csv",
-        mime="text/csv",
-    )
+        st.download_button(
+            "📥 Download Screener CSV",
+            data=df[csv_cols].to_csv(index=False),
+            file_name="v9_10day_momentum_screener_hybrid.csv",
+            mime="text/csv",
+        )
 
 st.caption("For research and education only. Not financial advice.")
+
 
 
 
