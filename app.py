@@ -275,16 +275,26 @@ else:
 
     st.subheader(f"🔥 Returned: {len(df)} symbols")
 
+    def fmt2(x):
+    """Format numbers to 2 decimals; show '—' if missing."""
+    try:
+        if x is None:
+            return "—"
+        return f"{float(x):.2f}"
+    except Exception:
+        return "—"
+
+
     for _,row in df.iterrows():
         c1,c2,c3,c4 = st.columns([2,3,3,3])
         c1.markdown(f"### **{row['Symbol']}**")
         c1.write(f"Price **{row['Price']}** | Vol **{row['Volume']:,}**")
-        c1.write(f"Score **{row['Score']:.2f}** | RiseProb {row['Prob_Rise%']:.2f}%")
+        c1.write(f"Score **{fmt2(row['Score'])}** | RiseProb {fmt2(row['Prob_Rise%'])}%")
 
 
-        c2.write(f"PM {row['PM%']:.2f}%  |  YDay {row['YDay%']:.2f}%")
-        c2.write(f"3D {row['3D%']:.2f}% | 10D {row['10D%']:.2f}%")
-        c2.write(f"RSI7 {row['RSI7']} | RVOL {row['RVOL_10D']}x")
+        c2.write(f"PM {fmt2(row['PM%'])}%  |  YDay {fmt2(row['YDay%'])}%")
+        c2.write(f"3D {fmt2(row['3D%'])}% | 10D {fmt2(row['10D%'])}%")
+        c2.write(f"RSI7 {fmt2(row['RSI7'])} | RVOL {fmt2(row['RVOL_10D'])}x")
 
         c3.markdown("### 🧠 AI Commentary")
         c3.write(row["AI_Commentary"])
