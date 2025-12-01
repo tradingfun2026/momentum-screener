@@ -231,21 +231,21 @@ def scan_one(sym,enrich,of_filter,min_ofb):
         prob=breakout_probability(score)
 
         return dict(
-            Symbol=t,Exchange=sym.get("Exchange","UNK"),
-            Price=round(price,2),Volume=int(vol),
-            Score=score,Prob_Rise%=prob,
-            PM%=round(pm,2) if pm else None,
-            YDay%=round(yday,2) if yday else None,
-            3D%=round(m3,2) if m3 else None,
-           10D%=round(m10,2) if m10 else None,
-            RSI7=round(rsi7,2),EMA10_Trend=trend,
-            RVOL_10D=round(rvol,2) if rvol else None,
-            VWAP%=round(vwap,2) if vwap else None,
-            FlowBias=round(flow,2) if flow else None,
-            MTF_Trend=multi_timeframe_label(pm,m3,m10),
-            AI_Commentary=ai_commentary(score,pm,rvol,flow,vwap,m10),
-            Spark=hist["Close"]
-        )
+    Symbol=t,Exchange=sym.get("Exchange","UNK"),
+    Price=round(price,2),Volume=int(vol),
+    Score=score,Prob_Rise%=prob,
+    PM%=round(pm,2) if pm else None,
+    YDay%=round(yday,2) if yday else None,
+    "3D%": round(m3,2) if m3 else None,        # ← FIXED
+    "10D%": round(m10,2) if m10 else None,     # ← FIXED
+    RSI7=round(rsi7,2),EMA10_Trend=trend,
+    RVOL_10D=round(rvol,2) if rvol else None,
+    VWAP%=round(vwap,2) if vwap else None,
+    FlowBias=round(flow,2) if flow else None,
+    MTF_Trend=multi_timeframe_label(pm,m3,m10),
+    AI_Commentary=ai_commentary(score,pm,rvol,flow,vwap,m10),
+    Spark=hist["Close"]
+)
     except:return None
 
 # ========================= RUN SCAN =========================
