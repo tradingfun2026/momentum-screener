@@ -269,12 +269,25 @@ if df.empty:
 else:
     # Filters only apply when NOT watchlist
     if not watchlist_text.strip():
-        df=df[df["Score"]>=min_breakout]
-        df=df[df["PM%"].fillna(-999)>=min_pm_move]
-        df=df[df["YDay%"].fillna(-999)>=min_yday_gain]
-        if squeeze_only:df=df[df["Squeeze?"]]
-        if catalyst_only:df=df[df["Catalyst"]]
-        if vwap_only:df=df[df["VWAP%"].fillna(-999)>0]
+
+    if "Score" in df:
+        df = df[df["Score"].fillna(-999) >= min_breakout]
+
+    if "PM%" in df:
+        df = df[df["PM%"].fillna(-999) >= min_pm_move]
+
+    if "YDay%" in df:
+        df = df[df["YDay%"].fillna(-999) >= min_yday_gain]
+
+    if squeeze_only and "Squeeze?" in df:
+        df = df[df["Squeeze?"]]
+
+    if catalyst_only and "Catalyst" in df:
+        df = df[df["Catalyst"] == True]
+
+    if vwap_only and "VWAP%" in df:
+        df = df[df["VWAP%"].fillna(-999) > 0]
+
 
     df=df.sort_values(by=["Score","PM%","RSI7"],ascending=[False,False,False])
     st.subheader(f"🔥 Final Symbols Returned = **{len(df)}**")
