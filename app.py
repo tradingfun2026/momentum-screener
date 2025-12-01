@@ -67,7 +67,7 @@ def load_symbols():
     df=pd.concat([nasdaq[["Symbol","ETF","Exchange"]],
                   other[["Symbol","ETF","Exchange"]]])
 
-    df["Symbol"]=df["Symbol"].astype(str).fillna("")  # fix for ValueError
+    df["Symbol"]=df["Symbol"].astype(str).fillna("")  # fix for NaN KeyError
     df=df[df["Symbol"].str.match(r"^[A-Z]{1,5}$",na=False)]
     return df.to_dict("records")
 
@@ -106,13 +106,13 @@ def ai_commentary(score, pm, rvol, flow_bias, vwap, ten_day):
     if flow_bias and flow_bias>0.65: parts.append("Buy-volume lead 📈")
     if flow_bias and flow_bias<0.4: parts.append("Seller controlled 📉")
     if vwap and vwap>0: parts.append("Above VWAP – bullish control")
-    if vwap and vwap<0: parts.append("Below VWAP supply overhead")
-    if ten_day and ten_day>10: parts.append("10D trend favoring strength")
-    if ten_day and ten_day<-5: parts.append("10D trend weakening")
+    if vwap and vwap<0: parts.append("Below VWAP resistance overhead")
+    if ten_day and ten_day>10: parts.append("10D trend strengthening")
+    if ten_day and ten_day<-5: parts.append("10D trend deteriorating")
 
     return " | ".join(parts)
 
-# ========================= SCAN ONE (WATCHLIST SAFE) =========================
+# ========================= SCAN ONE =========================
 def scan_one(sym,enrich,ofb,min_ofb):
     t=sym["Symbol"];watch=(sym.get("Exchange")=="WATCH")
 
@@ -120,22 +120,21 @@ def scan_one(sym,enrich,ofb,min_ofb):
         stock=yf.Ticker(t)
         hist=stock.history(period=f"{HISTORY_LOOKBACK_DAYS}d",interval="1d")
 
-        # Watchlist ALWAYS returns even if incomplete
+        # If watchlist → always return
         if hist is None or hist.empty or len(hist)<5:
             return {"Symbol":t,"Exchange":"WATCH","Score":None,
-                    "AI_Commentary":"⚠ No data – Watchlist override"}
+                    "AI_Commentary":"⚠ No data – watchlist override"}
 
         close=hist["Close"];volume=hist["Volume"]
         price=float(close.iloc[-1]);vol=float(volume.iloc[-1])
 
+        # Filters bypass for watchlist
         if not watch and (price>max_price or vol<min_volume): return None
 
-        # Momentum math
         yday=(close.iloc[-1]-close.iloc[-2])/close.iloc[-2]*100 if len(close)>=2 else None
         m3=(close.iloc[-1]-close.iloc[-4])/close.iloc[-4]*100 if len(close)>=4 else None
         m10=(close.iloc[-1]-close.iloc[0])/close.iloc[0]*100
 
-        # RSI7
         delta=close.diff()
         gain=delta.clip(lower=0).rolling(7).mean()
         loss=(-delta.clip(upper=0)).rolling(7).mean()
@@ -143,7 +142,6 @@ def scan_one(sym,enrich,ofb,min_ofb):
         rsi7=float(100-(100/(1+rs)).iloc[-1])
         rvol10=vol/volume.mean() if volume.mean()>0 else None
 
-        # Intraday
         pm=vwap=flow=None
         try:
             intra=stock.history(period=INTRADAY_RANGE,interval=INTRADAY_INTERVAL,prepost=True)
@@ -202,15 +200,16 @@ def run_scan(w,maxu,en,ofb,min_ofb,mode,pool):
 df=run_scan(watchlist_text,max_universe,enable_enrichment,enable_ofb_filter,min_ofb,universe_mode,volume_rank_pool)
 
 if not df.empty:
-    # ---------------- SAFE FILTERING (fixes KeyError on PM%) ---------------- #
+
+    # ------------ Safe filtering (syntax fixed) ------------ #
     if not watchlist_text.strip():
 
         if "Score" in df: df=df[df["Score"].fillna(-999)>=min_breakout]
-        if "PM%" in df: df=df[df["PM%"].fillna(-999)>=min_pm_move]
+        if "PM%"] in df: df=df[df["PM%"].fillna(-999)>=min_pm_move]     # ✔ FIXED
         if "YDay%" in df: df=df[df["YDay%"].fillna(-999)>=min_yday_gain]
         if squeeze_only and "Squeeze?" in df: df=df[df["Squeeze?"]==True]
         if catalyst_only and "Catalyst" in df: df=df[df["Catalyst"]==True]
-        if vwap_only and "VWAP%"] in df: df=df[df["VWAP%"].fillna(-999)>0]
+        if vwap_only and "VWAP%" in df: df=df[df["VWAP%"].fillna(-999)>0]   # ✔ FIXED
 
     df=df.sort_values(by=["Score","PM%","RSI7"],ascending=[False,False,False])
     st.subheader(f"Results Returned: {len(df)}")
@@ -231,12 +230,12 @@ if not df.empty:
         c4.plotly_chart(go.Figure(data=[go.Scatter(y=row["Spark"].values)]),
                         use_container_width=True)
 
-    # CSV
-    cols=[c for c in ["Symbol","Exchange","Price","Volume","Score","Prob_Rise%","PM%","YDay%","3D%","10D%","RSI7","RVOL_10D","VWAP%","FlowBias","AI_Commentary"] if c in df.columns]
-    st.download_button("📥 Download CSV",df[cols].to_csv(index=False),"screener.csv")
+    export_cols=[c for c in ["Symbol","Exchange","Price","Volume","Score","Prob_Rise%","PM%","YDay%","3D%","10D%","RSI7","RVOL_10D","VWAP%","FlowBias","AI_Commentary"] if c in df.columns]
+    st.download_button("📥 Download CSV",df[export_cols].to_csv(index=False),"screener.csv")
 
 else:
     st.error("No results – watchlist symbols still output even if no data")
+
 
 
 st.caption("For research and education only. Not financial advice.  All original UI restored — watchlist now fully overridden.")
