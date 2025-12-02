@@ -49,13 +49,13 @@ def fmt2(x):
 POSITIVE_WORDS = [
     "beat","beats","strong","positive","upgrades","upgrade","raises","raised",
     "accelerating","surge","soars","soar","winning","win","growth","expand",
-    "expanding","record","optimistic","approval","approved"
+    "expanding","record","optimistic","approval","approved", "buy", "patent"
 ]
 
 NEGATIVE_WORDS = [
     "miss","misses","downgrade","downgrades","negative","falls","falling",
     "cuts","cut","delay","delayed","weak","warning","lawsuit","investigation",
-    "probe","decline","declining","drop","drops"
+    "probe","decline","declining","drop","dilution","drops"
 ]
 
 def news_sentiment_score(title, summary):
