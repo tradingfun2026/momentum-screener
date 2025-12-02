@@ -376,7 +376,7 @@ def scan_one(sym, enable_enrichment, enable_ofb_filter, min_ofb):
                 short_pct=info.get("shortPercentOfFloat")
                 sector=info.get("sector","Unknown")
                 industry=info.get("industry","Unknown")
-                low_float=bool(float_shares and float_shares<20_000_000)
+                low_float=bool(float_shares and float_shares<10_000_000)
                 squeeze=bool(short_pct and short_pct>0.15)
                 short_pct_display=round(short_pct*100,2) if short_pct else None
             except:
