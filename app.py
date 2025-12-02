@@ -354,6 +354,25 @@ def ai_commentary(score, pm, rvol, flow_bias, vwap, ten_day):
 
     return " | ".join(comments)
 
+def news_sentiment_score(title: str, summary: str) -> float:
+    """Simple heuristic sentiment scorer: returns value between -1 and +1."""
+    text = (title or "") + " " + (summary or "")
+    text = text.lower()
+
+    positive_words = ["beat", "growth", "upgrades", "strong", "positive", "record", "surge", "soars"]
+    negative_words = ["miss", "downgrade", "fall", "lawsuit", "investigation", "decline", "weak"]
+
+    score = 0
+    for w in positive_words:
+        if w in text:
+            score += 1
+    for w in negative_words:
+        if w in text:
+            score -= 1
+
+    return max(-1, min(1, score))
+
+
 # ========================= CORE SCAN =========================
 def scan_one(sym, enable_enrichment: bool, enable_ofb_filter: bool, min_ofb: float):
     try:
@@ -485,6 +504,25 @@ def scan_one(sym, enable_enrichment: bool, enable_ofb_filter: bool, min_ofb: flo
             except Exception:
                 pass
 
+                            # Multi-article sentiment scoring (Option A)
+                try:
+                    if news:
+                        sentiment_values = []
+                        for item in news[:5]:  # analyze up to 5 articles
+                            t = item.get("title", "")
+                            s = item.get("summary", "")
+                            sentiment_values.append(news_sentiment_score(t, s))
+
+                        if sentiment_values:
+                            sentiment_score_val = round(sum(sentiment_values) / len(sentiment_values), 2)
+                        else:
+                            sentiment_score_val = 0.0
+                    else:
+                        sentiment_score_val = 0.0
+                except Exception:
+                    sentiment_score_val = 0.0
+
+
         # Multi-timeframe label
         mtf_label = multi_timeframe_label(premarket_pct, m3, m10)
 
@@ -586,6 +624,15 @@ def run_scan(
         return pd.DataFrame()
     return pd.DataFrame(results)
 
+    try:
+    news = stock.get_news()
+    if news and "providerPublishTime" in news[0]:
+        pub = datetime.fromtimestamp(news[0]["providerPublishTime"], tz=timezone.utc)
+        catalyst = (datetime.now(timezone.utc) - pub).days <= 3
+except Exception:
+    pass
+
+
 # ========================= SPARKLINE & CHART HELPERS =========================
 def sparkline(series: pd.Series):
     fig = go.Figure()
@@ -668,6 +715,8 @@ else:
             df = df[df["Catalyst"]]
         if vwap_only and "VWAP%" in df:
             df = df[df["VWAP%"].fillna(-999) > 0]
+
+    
 
     if df.empty:
         st.error("No results after filters.")
